@@ -1,0 +1,9 @@
+{
+  "uuid": "claude-usage@tobrien.local",
+  "name": "Claude Usage",
+  "description": "Shows Claude Code token usage and equivalent API cost from your local ~/.claude transcripts, with a top-bar drop-down for the current 5-hour block, today and the last 7 days.",
+  "shell-version": ["48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.claude-usage",
+  "gettext-domain": "claude-usage",
+  "version": 1
+}

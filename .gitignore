@@ -1,0 +1,5 @@
+# Built by install.sh from the .gschema.xml
+schemas/gschemas.compiled
+
+# Packed extension bundles
+*.shell-extension.zip

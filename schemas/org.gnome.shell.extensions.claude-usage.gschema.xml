@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="org.gnome.shell.extensions.claude-usage.panel-mode">
+    <value nick="session-percent" value="0"/>
+    <value nick="week-percent" value="1"/>
+    <value nick="session-cost" value="2"/>
+    <value nick="today-cost" value="3"/>
+    <value nick="icon-only" value="4"/>
+  </enum>
+  <enum id="org.gnome.shell.extensions.claude-usage.panel-position">
+    <value nick="left" value="0"/>
+    <value nick="center" value="1"/>
+    <value nick="right" value="2"/>
+  </enum>
+  <schema id="org.gnome.shell.extensions.claude-usage"
+          path="/org/gnome/shell/extensions/claude-usage/">
+    <key name="refresh-interval" type="i">
+      <default>60</default>
+      <range min="10" max="3600"/>
+      <summary>Refresh interval in seconds</summary>
+    </key>
+    <key name="panel-mode" enum="org.gnome.shell.extensions.claude-usage.panel-mode">
+      <default>'session-percent'</default>
+      <summary>What the top bar shows</summary>
+    </key>
+    <key name="panel-position" enum="org.gnome.shell.extensions.claude-usage.panel-position">
+      <default>'right'</default>
+      <summary>Where the indicator sits in the top bar</summary>
+    </key>
+    <key name="breakdown-by-project" type="b">
+      <default>false</default>
+      <summary>Break today down by project instead of by model</summary>
+    </key>
+  </schema>
+</schemalist>
