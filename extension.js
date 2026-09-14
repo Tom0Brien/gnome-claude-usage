@@ -10,7 +10,10 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+import {resolveTheme, withAlpha} from './themes.js';
+
 const HOUR = 3600 * 1000;
+const THEME_KEYS = ['theme', 'custom-theme', 'theme-background'];
 
 function formatCost(value) {
     if (!value)
@@ -63,9 +66,19 @@ function shortProject(dir) {
     return name.replace(/^-+/, '') || dir;
 }
 
+// Theme colours go in inline styles, which beat the stylesheet and can change
+// without reloading it. A missing colour leaves the stylesheet's fallback.
+function colorStyle(color) {
+    return color ? `color: ${color};` : null;
+}
+
+function backgroundStyle(color) {
+    return color ? `background-color: ${color};` : null;
+}
+
 // Labels in a fixed-width menu must wrap, or one long line widens the menu.
-function wrappingLabel(styleClass, text = '') {
-    const label = new St.Label({text, style_class: styleClass, x_expand: true});
+function wrappingLabel(styleClass, text = '', style = null) {
+    const label = new St.Label({text, style_class: styleClass, style, x_expand: true});
     label.clutter_text.line_wrap = true;
     label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
     return label;
@@ -79,16 +92,26 @@ function levelFor(fraction) {
     return 'normal';
 }
 
+function levelColor(colors, level) {
+    if (level === 'over')
+        return colors.critical;
+    if (level === 'high')
+        return colors.warning;
+    return colors.accent;
+}
+
 // A rounded track with a proportional fill. Clutter has no percentage width,
 // so the fill is placed by hand at allocation time.
 const UsageBar = GObject.registerClass(
 class UsageBar extends St.Widget {
-    _init() {
+    _init(colors) {
         super._init({
             style_class: 'claude-bar',
+            style: backgroundStyle(colors.track),
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
+        this._colors = colors;
         this._fraction = 0;
         this._fill = new St.Widget({style_class: 'claude-bar-fill'});
         this.add_child(this._fill);
@@ -99,7 +122,7 @@ class UsageBar extends St.Widget {
     setFraction(fraction, colorize = true) {
         this._fraction = Math.max(0, Math.min(1, fraction || 0));
         const level = colorize ? levelFor(this._fraction) : 'normal';
-        this._fill.style_class = `claude-bar-fill claude-bar-${level}`;
+        this._fill.style = backgroundStyle(levelColor(this._colors, level));
         this.queue_relayout();
     }
 
@@ -117,8 +140,9 @@ class UsageBar extends St.Widget {
 
 const Sparkline = GObject.registerClass(
 class Sparkline extends St.BoxLayout {
-    _init() {
+    _init(colors) {
         super._init({style_class: 'claude-sparkline', x_expand: true});
+        this._colors = colors;
     }
 
     setValues(values) {
@@ -133,6 +157,7 @@ class Sparkline extends St.BoxLayout {
             });
             column.add_child(new St.Widget({
                 style_class: value > 0 ? 'claude-spark-bar' : 'claude-spark-bar claude-spark-empty',
+                style: backgroundStyle(value > 0 ? this._colors.accent : this._colors.track),
                 height: Math.max(2, Math.round(28 * (value / peak))),
                 x_expand: true,
                 y_expand: true,
@@ -146,16 +171,16 @@ class Sparkline extends St.BoxLayout {
 // One plan-limit window: title, "N% used", a bar, and when it resets.
 const WindowRow = GObject.registerClass(
 class WindowRow extends St.BoxLayout {
-    _init() {
+    _init(colors) {
         super._init({
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             style_class: 'claude-window',
         });
-        this._title = new St.Label({style_class: 'claude-heading'});
+        this._title = new St.Label({style_class: 'claude-heading', style: colorStyle(colors.muted)});
         this._value = new St.Label({style_class: 'claude-headline'});
-        this._bar = new UsageBar();
-        this._detail = wrappingLabel('claude-detail');
+        this._bar = new UsageBar(colors);
+        this._detail = wrappingLabel('claude-detail', '', colorStyle(colors.muted));
         this.add_child(this._title);
         this.add_child(this._value);
         this.add_child(this._bar);
@@ -193,11 +218,14 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._cancellable = null;
         this._timeoutId = 0;
         this._windowRows = [];
+        this._colors = resolveTheme(this._settings);
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
         this._icon = new St.Icon({
-            icon_name: 'utilities-system-monitor-symbolic',
-            style_class: 'system-status-icon',
+            gicon: Gio.icon_new_for_string(
+                `${extension.path}/icons/claude-usage-symbolic.svg`),
+            style_class: 'system-status-icon claude-panel-icon',
+            style: colorStyle(this._colors.accent),
         });
         this._label = new St.Label({
             text: '…',
@@ -213,6 +241,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._settingsChangedId = this._settings.connect('changed', (_s, key) => {
             if (key === 'refresh-interval')
                 this._restartTimer();
+            else if (THEME_KEYS.includes(key))
+                this._applyTheme();
             else
                 this._render();
         });
@@ -226,8 +256,28 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._restartTimer();
     }
 
+    // Every themed actor takes its colours when it is built, so a theme change
+    // just builds the menu again.
+    _applyTheme() {
+        this._colors = resolveTheme(this._settings);
+        this._icon.style = colorStyle(this._colors.accent);
+        this.menu.removeAll();
+        this._windowRows = [];
+        this._buildMenu();
+        this._render();
+    }
+
     _buildMenu() {
+        const colors = this._colors;
+        this.menu.box.style = colors.background
+            ? `background-color: ${colors.background}; color: ${colors.text}; ` +
+              `border-color: ${withAlpha(colors.text, 0.12)};`
+            : null;
+
+        // A non-reactive item takes the shell's insensitive text colour, so the
+        // theme's text colour has to be set here rather than inherited.
         const section = new PopupMenu.PopupBaseMenuItem({reactive: false, can_focus: false});
+        section.style = colorStyle(colors.text);
         const content = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
@@ -243,26 +293,27 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         });
         content.add_child(this._windowBox);
 
-        this._planNotice = wrappingLabel('claude-detail claude-notice');
+        const muted = colorStyle(colors.muted);
+        this._planNotice = wrappingLabel('claude-detail claude-notice', '', colorStyle(colors.warning));
         content.add_child(this._planNotice);
 
-        this._extra = wrappingLabel('claude-detail');
+        this._extra = wrappingLabel('claude-detail', '', muted);
         content.add_child(this._extra);
 
         // Local transcript detail: what the plan limits cannot tell you.
-        content.add_child(new St.Label({text: 'Local activity today', style_class: 'claude-heading'}));
+        content.add_child(new St.Label({text: 'Local activity today', style_class: 'claude-heading', style: muted}));
         this._todayHeadline = new St.Label({text: '—', style_class: 'claude-headline'});
         content.add_child(this._todayHeadline);
-        this._todayDetail = wrappingLabel('claude-detail');
+        this._todayDetail = wrappingLabel('claude-detail', '', muted);
         content.add_child(this._todayDetail);
 
-        content.add_child(new St.Label({text: 'Last 14 days', style_class: 'claude-heading'}));
-        this._sparkline = new Sparkline();
+        content.add_child(new St.Label({text: 'Last 14 days', style_class: 'claude-heading', style: muted}));
+        this._sparkline = new Sparkline(colors);
         content.add_child(this._sparkline);
-        this._weekDetail = wrappingLabel('claude-detail');
+        this._weekDetail = wrappingLabel('claude-detail', '', muted);
         content.add_child(this._weekDetail);
 
-        this._breakdownHeading = new St.Label({style_class: 'claude-heading'});
+        this._breakdownHeading = new St.Label({style_class: 'claude-heading', style: muted});
         content.add_child(this._breakdownHeading);
         this._breakdown = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -270,17 +321,31 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         });
         content.add_child(this._breakdown);
 
-        this._footer = wrappingLabel('claude-detail claude-footer');
+        this._footer = wrappingLabel('claude-detail claude-footer', '', muted);
         content.add_child(this._footer);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        const refreshItem = new PopupMenu.PopupMenuItem('Refresh now');
-        refreshItem.connect('activate', () => this.refresh({fresh: true}));
-        this.menu.addMenuItem(refreshItem);
+        const separator = new PopupMenu.PopupSeparatorMenuItem();
+        if (colors.background)
+            separator._separator.style = backgroundStyle(withAlpha(colors.text, 0.12));
+        this.menu.addMenuItem(separator);
+        this._addAction('Refresh now', () => this.refresh({fresh: true}));
+        this._addAction('Settings', () => this._extension.openPreferences());
+    }
 
-        const prefsItem = new PopupMenu.PopupMenuItem('Settings');
-        prefsItem.connect('activate', () => this._extension.openPreferences());
-        this.menu.addMenuItem(prefsItem);
+    _addAction(text, callback) {
+        const item = new PopupMenu.PopupMenuItem(text);
+        item.connect('activate', callback);
+        // The shell's hover style assumes its own dark menu, so a themed
+        // background needs a hover fill drawn from the theme's text colour.
+        const style = () => {
+            const {background, text: fg} = this._colors;
+            item.style = background
+                ? `color: ${fg}; background-color: ${item.active ? withAlpha(fg, 0.1) : 'transparent'};`
+                : null;
+        };
+        item.connect('notify::active', style);
+        style();
+        this.menu.addMenuItem(item);
     }
 
     refresh({fresh = false} = {}) {
@@ -371,9 +436,12 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         if (text === null && mode !== 'icon-only')
             text = formatCost(data.today.cost);
 
+        // The label keeps the top bar's own colour until usage needs attention.
+        const level = levelFor(fraction);
         this._label.visible = text !== null;
         this._label.text = text ?? '';
-        this._label.style_class = `claude-panel-label claude-panel-${levelFor(fraction)}`;
+        this._label.style = level === 'normal' ? null : colorStyle(levelColor(this._colors, level));
+        this._icon.style = colorStyle(levelColor(this._colors, level));
     }
 
     _renderWindows(data, now) {
@@ -383,7 +451,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         while (this._windowRows.length > windows.length)
             this._windowRows.pop().destroy();
         while (this._windowRows.length < windows.length) {
-            const row = new WindowRow();
+            const row = new WindowRow(this._colors);
             this._windowBox.add_child(row);
             this._windowRows.push(row);
         }
@@ -423,6 +491,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             this._breakdown.add_child(new St.Label({
                 text: 'Nothing yet today.',
                 style_class: 'claude-detail',
+                style: colorStyle(this._colors.muted),
             }));
             return;
         }
@@ -440,9 +509,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             line.add_child(new St.Label({
                 text: formatCost(row.cost),
                 style_class: 'claude-row-value',
+                style: colorStyle(this._colors.muted),
             }));
             this._breakdown.add_child(line);
-            const bar = new UsageBar();
+            const bar = new UsageBar(this._colors);
             bar.setFraction(row.cost / top, false);
             this._breakdown.add_child(bar);
         }
