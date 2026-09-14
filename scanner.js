@@ -227,6 +227,69 @@ const WINDOW_TITLES = {
     seven_day_oauth_apps: 'Current week (apps)',
 };
 
+// List the names of a directory's entries, or [] if it can't be read.
+function listDir(path) {
+    const out = [];
+    try {
+        const en = Gio.File.new_for_path(path).enumerate_children(
+            'standard::name', Gio.FileQueryInfoFlags.NONE, null);
+        let info;
+        while ((info = en.next_file(null)) !== null)
+            out.push(info.get_name());
+        en.close(null);
+    } catch (_e) {
+        // Missing or unreadable directory: nothing to contribute.
+    }
+    return out;
+}
+
+// Compare two dotted version strings (e.g. "2.1.205-linux-x64").
+// Returns >0 if a is newer, <0 if older, 0 if equal.
+function compareVersions(a, b) {
+    const pa = a.split('.');
+    const pb = b.split('.');
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (parseInt(pa[i], 10) || 0) - (parseInt(pb[i], 10) || 0);
+        if (d)
+            return d;
+    }
+    return 0;
+}
+
+// Editors that install the Claude Code extension bundle a full `claude`
+// binary inside the extension directory (names look like
+// `anthropic.claude-code-2.1.205-linux-x64`). When no standalone CLI is on
+// PATH, use the newest bundled copy; it shares the same ~/.claude sign-in.
+function editorBundledClaude() {
+    const home = GLib.get_home_dir();
+    const extensionRoots = [
+        [home, '.vscode', 'extensions'],
+        [home, '.vscode-insiders', 'extensions'],
+        [home, '.vscode-server', 'extensions'],
+        [home, '.vscode-server-insiders', 'extensions'],
+        [home, '.vscodium', 'extensions'],
+        [home, '.cursor', 'extensions'],
+        [home, '.windsurf', 'extensions'],
+    ];
+    const prefix = 'anthropic.claude-code-';
+    const matches = [];
+    for (const parts of extensionRoots) {
+        const root = GLib.build_filenamev(parts);
+        for (const name of listDir(root)) {
+            if (!name.startsWith(prefix))
+                continue;
+            const bin = GLib.build_filenamev(
+                [root, name, 'resources', 'native-binary', 'claude']);
+            if (GLib.file_test(bin, GLib.FileTest.IS_EXECUTABLE))
+                matches.push({version: name.slice(prefix.length), bin});
+        }
+    }
+    if (!matches.length)
+        return null;
+    matches.sort((a, b) => compareVersions(b.version, a.version));
+    return matches[0].bin;
+}
+
 function claudeBinary() {
     const explicit = GLib.getenv('CLAUDE_USAGE_BIN');
     if (explicit && GLib.file_test(explicit, GLib.FileTest.IS_EXECUTABLE))
@@ -245,7 +308,8 @@ function claudeBinary() {
         if (GLib.file_test(candidate, GLib.FileTest.IS_EXECUTABLE))
             return candidate;
     }
-    return null;
+    // Fall back to a copy bundled inside an editor's Claude Code extension.
+    return editorBundledClaude();
 }
 
 function liveCachePath() {
