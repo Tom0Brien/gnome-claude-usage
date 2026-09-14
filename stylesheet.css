@@ -2,6 +2,13 @@
     margin-left: 5px;
 }
 
+/* Colours come from themes.js as inline styles. The ones left here are the
+   neutral fallbacks used when a theme leaves the shell's menu colours alone. */
+
+.claude-panel-icon {
+    icon-size: 16px;
+}
+
 .claude-menu {
     width: 340px;
     spacing: 4px;
@@ -14,20 +21,11 @@
 
 .claude-notice {
     margin: 6px 0;
-    color: rgba(255, 200, 120, 0.9);
 }
 
 .claude-footer {
     margin-top: 12px;
     font-size: 0.8em;
-}
-
-.claude-panel-high {
-    color: #e0a458;
-}
-
-.claude-panel-over {
-    color: #d95757;
 }
 
 .claude-heading {
@@ -63,15 +61,6 @@
 
 .claude-bar-fill {
     border-radius: 4px;
-    background-color: #d97757;
-}
-
-.claude-bar-high {
-    background-color: #e0a458;
-}
-
-.claude-bar-over {
-    background-color: #d95757;
 }
 
 .claude-sparkline {
@@ -81,7 +70,6 @@
 }
 
 .claude-spark-bar {
-    background-color: #d97757;
     border-radius: 2px;
     min-width: 6px;
 }

@@ -27,6 +27,36 @@ subscription (Pro, Max, Team or Enterprise).
 
 The bars turn amber at 75% and red at 100%, and so does the panel label.
 
+## Themes
+
+Pick a colour theme under **Settings → Appearance**, with a live preview:
+
+Claude (the default, which keeps the shell's own menu colours), Claude Dark,
+Claude Light, Adwaita Dark, Adwaita Light, Catppuccin Mocha, Catppuccin Latte,
+Dracula, Everforest, GitHub Dark, GitHub Light, Gruvbox Dark, Gruvbox Light,
+Kanagawa, Monokai, Nord, One Dark, Rosé Pine, Solarized Dark, Solarized Light,
+Tokyo Night and High Contrast.
+
+Each theme sets seven colours: accent, warning, critical, and the drop-down's
+background, text, secondary text and bar track. Turn off **Theme the drop-down
+background** to keep only a theme's accent and warning colours on the shell's
+own menu.
+
+To make your own, change any colour. The current theme and your change are
+saved as the **Custom** theme, which stays in the list when you switch away.
+From the command line:
+
+```sh
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/claude-usage@tobrien.local/schemas \
+  set org.gnome.shell.extensions.claude-usage custom-theme \
+  "{'accent': '#50c878', 'background': '#141e3c', 'text': '#f0f0f0'}"
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/claude-usage@tobrien.local/schemas \
+  set org.gnome.shell.extensions.claude-usage theme custom
+```
+
+Colours can be `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()` or `rgba()`. Any you
+leave out come from Claude Dark. Built-in themes live in `themes.js`.
+
 ## How it gets the numbers
 
 Claude Code answers a `get_usage` control request on its stream-json
@@ -76,6 +106,8 @@ If GNOME Shell can't find `claude` on its `PATH`, the scanner also looks in
 | Position | Right | Left, centre or right of the top bar |
 | Refresh interval | 60 s | Opening the menu always fetches fresh numbers |
 | Break down by project | Off | Today's top five per project instead of per model |
+| Theme | Claude | 21 more built-in themes, or Custom |
+| Theme the drop-down background | On | Off keeps the shell's menu colours |
 
 ## How it's built
 
@@ -84,7 +116,8 @@ If GNOME Shell can't find `claude` on its `PATH`, the scanner also looks in
 | `extension.js` | Panel button, drop-down, refresh timer |
 | `scanner.js` | Standalone GJS script: fetches plan limits, parses transcripts, prints JSON |
 | `prefs.js` | Adwaita preferences window |
-| `stylesheet.css` | Menu styling |
+| `themes.js` | Built-in themes and colour resolution, shared by the extension and prefs |
+| `stylesheet.css` | Menu layout and fallback colours |
 | `schemas/` | GSettings schema |
 
 `scanner.js` runs as a subprocess, so neither the `claude` call nor parsing tens

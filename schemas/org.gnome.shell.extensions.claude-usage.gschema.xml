@@ -31,5 +31,19 @@
       <default>false</default>
       <summary>Break today down by project instead of by model</summary>
     </key>
+    <key name="theme" type="s">
+      <default>'claude'</default>
+      <summary>Colour theme</summary>
+      <description>A built-in theme id from themes.js, or 'custom' for custom-theme.</description>
+    </key>
+    <key name="custom-theme" type="a{ss}">
+      <default>{}</default>
+      <summary>Custom theme colours</summary>
+      <description>CSS colours keyed by role: accent, warning, critical, background, text, muted, track.</description>
+    </key>
+    <key name="theme-background" type="b">
+      <default>true</default>
+      <summary>Repaint the drop-down with the theme's background and text colours</summary>
+    </key>
   </schema>
 </schemalist>
