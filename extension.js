@@ -217,6 +217,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._data = null;
         this._cancellable = null;
         this._timeoutId = 0;
+        this._scanWatchdogId = 0;
         this._windowRows = [];
         this._colors = resolveTheme(this._settings);
 
@@ -370,8 +371,26 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             this._cancellable = null;
             return;
         }
+        // Self-heal a wedged scan. If the callback never arrives (e.g. the
+        // machine suspended mid-scan), the busy flag would otherwise stay set
+        // forever and every future refresh would silently no-op. The scanner
+        // caps its own work at 25s, so anything past 35s is stuck: cancel it
+        // and drop the flag so the next refresh can run.
+        this._scanWatchdogId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 35, () => {
+            this._scanWatchdogId = 0;
+            if (this._cancellable) {
+                log('claude-usage: scan timed out, resetting');
+                this._cancellable.cancel();
+                this._cancellable = null;
+            }
+            return GLib.SOURCE_REMOVE;
+        });
         proc.communicate_utf8_async(null, this._cancellable, (source, result) => {
             this._cancellable = null;
+            if (this._scanWatchdogId) {
+                GLib.Source.remove(this._scanWatchdogId);
+                this._scanWatchdogId = 0;
+            }
             try {
                 const [, stdout, stderr] = source.communicate_utf8_finish(result);
                 if (!source.get_successful()) {
@@ -552,6 +571,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         if (this._timeoutId) {
             GLib.Source.remove(this._timeoutId);
             this._timeoutId = 0;
+        }
+        if (this._scanWatchdogId) {
+            GLib.Source.remove(this._scanWatchdogId);
+            this._scanWatchdogId = 0;
         }
         if (this._cancellable) {
             this._cancellable.cancel();
