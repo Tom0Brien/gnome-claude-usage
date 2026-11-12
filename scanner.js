@@ -595,7 +595,10 @@ function main() {
         .map(([name, totals]) => ({name, ...totals}))
         .sort((a, b) => b.cost - a.cost);
 
+    // A cached plan-limit fetch calls back before the loop starts, and a quit
+    // before run() is lost, so only run the loop if the result is still owed.
     const loop = new GLib.MainLoop(null, false);
+    let printed = false;
     fetchLive(liveMaxAge * 1000, live => {
         print(JSON.stringify({
             generated: now,
@@ -610,9 +613,11 @@ function main() {
             models: rank(models),
             projects: rank(projects).slice(0, 5),
         }));
+        printed = true;
         loop.quit();
     });
-    loop.run();
+    if (!printed)
+        loop.run();
 }
 
 main();

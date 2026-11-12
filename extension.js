@@ -374,12 +374,14 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         // Self-heal a wedged scan. If the callback never arrives (e.g. the
         // machine suspended mid-scan), the busy flag would otherwise stay set
         // forever and every future refresh would silently no-op. The scanner
-        // caps its own work at 25s, so anything past 35s is stuck: cancel it
-        // and drop the flag so the next refresh can run.
+        // caps its own work at 25s, so anything past 35s is stuck: kill it and
+        // drop the flag so the next refresh can run. Cancelling alone only
+        // stops the read and would leave the scanner running.
         this._scanWatchdogId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 35, () => {
             this._scanWatchdogId = 0;
             if (this._cancellable) {
                 log('claude-usage: scan timed out, resetting');
+                proc.force_exit();
                 this._cancellable.cancel();
                 this._cancellable = null;
             }
