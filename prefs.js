@@ -264,6 +264,12 @@ export default class ClaudeUsagePreferences extends ExtensionPreferences {
             'What the indicator shows next to the icon', PANEL_MODES));
         panel.add(comboRow(settings, 'panel-position', 'Position',
             'Where the indicator sits in the top bar', POSITIONS));
+        const barRow = new Adw.SwitchRow({
+            title: 'Usage bar',
+            subtitle: 'Show a bar next to the percentage',
+        });
+        settings.bind('panel-bar', barRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        panel.add(barRow);
         panel.add(spinRow(settings, 'refresh-interval', 'Refresh interval',
             'Seconds between updates. Each one runs `claude` briefly to read your plan limits.',
             10, 3600, 10, 0));

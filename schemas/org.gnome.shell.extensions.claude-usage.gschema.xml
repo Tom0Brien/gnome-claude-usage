@@ -27,6 +27,10 @@
       <default>'right'</default>
       <summary>Where the indicator sits in the top bar</summary>
     </key>
+    <key name="panel-bar" type="b">
+      <default>false</default>
+      <summary>Show a usage bar next to the percentage in the top bar</summary>
+    </key>
     <key name="breakdown-by-project" type="b">
       <default>false</default>
       <summary>Break today down by project instead of by model</summary>

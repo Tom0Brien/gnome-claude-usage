@@ -90,3 +90,9 @@
     font-size: 0.9em;
     color: rgba(255, 255, 255, 0.75);
 }
+
+.claude-panel-bar {
+    width: 48px;
+    height: 6px;
+    margin: 0 0 0 4px;
+}

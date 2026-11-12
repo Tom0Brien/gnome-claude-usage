@@ -46,6 +46,7 @@ Open with `gnome-extensions prefs claude-usage@tobrien.local`.
 | --- | --- | --- |
 | Display | Session used (%) | Weekly %, 5-hour block cost, today's cost, icon only |
 | Position | Right | Left, centre or right |
+| Usage bar | Off | A bar next to the percentage (percent displays only) |
 | Refresh interval | 60 s | Opening the menu always fetches fresh numbers |
 | Break down by project | Off | Per project instead of per model |
 | Theme | Claude | 21 built-in themes (Catppuccin, Dracula, Nord, Gruvbox, …) or Custom |
