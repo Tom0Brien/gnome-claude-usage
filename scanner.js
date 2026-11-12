@@ -24,19 +24,30 @@ const LIVE_TIMEOUT_SECONDS = 25;  // the CLI needs ~1.5s; this is the give-up po
 
 // [input, output, cache write 5m, cache write 1h, cache read] in $ / 1M tokens.
 const PRICES = {
+    'claude-fable-5-2':  [8, 40, 10, 16, 0.20],
+    'claude-mythos-5-2': [8, 40, 10, 16, 0.20],
     'claude-fable-5-1':  [10, 50, 12.5, 20, 0.25],
     'claude-mythos-5-1': [10, 50, 12.5, 20, 0.25],
     'claude-fable-5':    [10, 50, 12.5, 20, 1.00],
     'claude-mythos-5':   [10, 50, 12.5, 20, 1.00],
+    'claude-opus-5-5':   [4, 20, 5, 8, 0.20],
     'claude-opus-5':     [5, 25, 6.25, 10, 0.50],
     'claude-opus-4-8':   [5, 25, 6.25, 10, 0.50],
     'claude-opus-4-7':   [5, 25, 6.25, 10, 0.50],
     'claude-opus-4-6':   [5, 25, 6.25, 10, 0.50],
     'claude-opus-4-5':   [5, 25, 6.25, 10, 0.50],
+    'claude-sonnet-5-5': [2, 10, 2.50, 4, 0.10],
     'claude-sonnet-5':   [2, 10, 2.50, 4, 0.20],
     'claude-sonnet-4-6': [3, 15, 3.75, 6, 0.30],
     'claude-sonnet-4-5': [3, 15, 3.75, 6, 0.30],
+    'claude-haiku-5-5':  [0.10, 0.50, 0.125, 0.20, 0.01],
     'claude-haiku-4-5':  [1, 5, 1.25, 2, 0.10],
+};
+// Claude Haiku 5.5 bills a request whose prompt is over 100K tokens, cache
+// reads and writes included, at a higher rate.
+const LONG_PROMPT_TOKENS = 100000;
+const LONG_PROMPT_PRICES = {
+    'claude-haiku-5-5':  [0.50, 2.50, 0.625, 1, 0.05],
 };
 const FAMILY_FALLBACK = {
     fable: PRICES['claude-fable-5-1'],
@@ -46,9 +57,15 @@ const FAMILY_FALLBACK = {
     haiku: PRICES['claude-haiku-4-5'],
 };
 
-function priceFor(model) {
+function priceFor(model, promptTokens) {
     // Model ids can carry suffixes such as "claude-opus-5[1m]".
     const id = String(model || '').split('[')[0].trim();
+    if (promptTokens > LONG_PROMPT_TOKENS) {
+        for (const [key, price] of Object.entries(LONG_PROMPT_PRICES)) {
+            if (id.startsWith(key))
+                return price;
+        }
+    }
     if (PRICES[id])
         return PRICES[id];
     for (const [key, price] of Object.entries(PRICES)) {
@@ -530,7 +547,7 @@ function main() {
         // (errors, interruptions); they are not model calls, so skip them.
         if (String(record.model).startsWith('<'))
             continue;
-        const price = priceFor(record.model);
+        const price = priceFor(record.model, record.i + record.w5 + record.w1 + record.r);
         if (!price) {
             unpriced += 1;
             record.cost = 0;
@@ -595,7 +612,10 @@ function main() {
         .map(([name, totals]) => ({name, ...totals}))
         .sort((a, b) => b.cost - a.cost);
 
+    // A cached plan-limit fetch calls back before the loop starts, and a quit
+    // before run() is lost, so only run the loop if the result is still owed.
     const loop = new GLib.MainLoop(null, false);
+    let printed = false;
     fetchLive(liveMaxAge * 1000, live => {
         print(JSON.stringify({
             generated: now,
@@ -610,9 +630,11 @@ function main() {
             models: rank(models),
             projects: rank(projects).slice(0, 5),
         }));
+        printed = true;
         loop.quit();
     });
-    loop.run();
+    if (!printed)
+        loop.run();
 }
 
 main();

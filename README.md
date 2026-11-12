@@ -8,7 +8,7 @@ to finish, and a local breakdown of what you've spent it on.
   <img src="docs/screenshot.png" width="420" alt="The Claude Usage drop-down, showing session and weekly limits, today's activity, a 14-day sparkline and a per-model breakdown">
 </p>
 
-Requires GNOME Shell 48–50 and Claude Code signed in with a Claude subscription
+Requires GNOME Shell 48–51 and Claude Code signed in with a Claude subscription
 (Pro, Max, Team or Enterprise).
 
 ## Install
